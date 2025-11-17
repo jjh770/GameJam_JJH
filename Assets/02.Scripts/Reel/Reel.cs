@@ -1,91 +1,69 @@
 using UnityEngine;
-using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
 
 public class Reel : MonoBehaviour
 {
     [Header("Reel Components")]
-    [SerializeField] private SpriteRenderer[] symbolSlots; // Image ¥ÎΩ≈
-    [SerializeField] private Transform reelContainer; // RectTransform ¥ÎΩ≈
+    [SerializeField] private SpriteRenderer[] symbolSlots; // Image ‚Üí SpriteRenderer
+    [SerializeField] private Transform reelContainer; // RectTransform ‚Üí Transform
 
     [Header("Reel Settings")]
-    [SerializeField] private float spinSpeed = 1000f; // »∏¿¸ º”µµ
-    [SerializeField] private float minSpinDuration = 1.5f; // √÷º“ »∏¿¸ Ω√∞£
-    [SerializeField] private float stopDuration = 0.5f; // ¡§¡ˆ±Ó¡ˆ ∞…∏Æ¥¬ Ω√∞£
-    [SerializeField] private float symbolHeight = 200f; // ∞¢ Ω…∫º¿« ≥Ù¿Ã
+    [SerializeField] private float spinSpeed = 10f; // ÌöåÏ†Ñ ÏÜçÎèÑ (units/sec)
+    [SerializeField] private float minSpinDuration = 1.5f;
+    [SerializeField] private float stopDuration = 0.5f;
+    [SerializeField] private float symbolHeight = 2f; // Ïã¨Î≥º Í∞ÑÍ≤©
 
     private ReelStrip reelStrip;
     private List<SlotSymbol> allSymbols;
     private bool isSpinning = false;
     private bool shouldStop = false;
-    private int[] finalResult = new int[3]; // √÷¡æ ∞·∞˙ (¿ß, ¡ﬂæ”, æ∆∑°)
-
-    // Ω…∫º «Æ (¿ÁªÁøÎ)
-    private List<Image> symbolPool = new List<Image>();
-    private Queue<int> upcomingSymbols = new Queue<int>();
+    private int[] finalResult = new int[3];
 
     public bool IsSpinning => isSpinning;
     public int[] FinalResult => finalResult;
 
-    // √ ±‚»≠
     public void Initialize(ReelStrip strip, List<SlotSymbol> symbols)
     {
         reelStrip = strip;
         allSymbols = symbols;
         reelStrip.GenerateStrip();
-
-        // √ ±‚ Ω…∫º º≥¡§
         SetRandomSymbols();
     }
 
-    // Ω∫«… Ω√¿€
     public void StartSpin()
     {
         if (!isSpinning)
-        {
             StartCoroutine(SpinRoutine());
-        }
     }
 
-    // Ω∫«… ¡§¡ˆ Ω≈»£
     public void StopSpin(int[] targetSymbols = null)
     {
         shouldStop = true;
 
-        // ∏Ò«• Ω…∫º¿Ã ¿÷¿∏∏È º≥¡§ (µπˆ±◊øÎ)
         if (targetSymbols != null && targetSymbols.Length == 3)
-        {
             finalResult = targetSymbols;
-        }
         else
         {
-            // ∑£¥˝ ∞·∞˙ ª˝º∫
             for (int i = 0; i < 3; i++)
-            {
                 finalResult[i] = reelStrip.GetRandomSymbol();
-            }
         }
     }
 
-    // Ω∫«… ∑Á∆æ
     private IEnumerator SpinRoutine()
     {
         isSpinning = true;
         shouldStop = false;
         float elapsedTime = 0f;
-        float currentSpeed = spinSpeed;
 
-        // ∫¸∏£∞‘ »∏¿¸
         while (!shouldStop || elapsedTime < minSpinDuration)
         {
-            // Ω…∫º¿ª æ∆∑°∑Œ ¿Ãµø (π´«— Ω∫≈©∑—)
+            // Transform.position ÏÇ¨Ïö©
             reelContainer.position += Vector3.down * spinSpeed * Time.deltaTime;
 
-            // Ω…∫º¿Ã ¿œ¡§ ∞≈∏Æ ¿Ãµø«œ∏È ¿ÁπËƒ°
-            if (reelContainer.position.y <= -symbolHeight)
+            if (reelContainer.localPosition.y <= -symbolHeight)
             {
-                reelContainer.position += new Vector3(0, symbolHeight);
+                reelContainer.localPosition += new Vector3(0, symbolHeight, 0);
                 ShiftSymbolsDown();
             }
 
@@ -93,77 +71,58 @@ public class Reel : MonoBehaviour
             yield return null;
         }
 
-        // ∫ŒµÂ∑¥∞‘ ¡§¡ˆ
         yield return StartCoroutine(SmoothStop());
-
         isSpinning = false;
     }
 
-    // Ω…∫º º¯»Ø (π´«— Ω∫≈©∑—)
     private void ShiftSymbolsDown()
     {
-        // ∏« ¿ß Ω…∫º¿ª ªı∑ŒøÓ ∑£¥˝ Ω…∫º∑Œ ±≥√º
         int newSymbolID = reelStrip.GetRandomSymbol();
         SlotSymbol newSymbol = allSymbols.Find(s => s.symbolID == newSymbolID);
 
         if (newSymbol != null)
-        {
             symbolSlots[0].sprite = newSymbol.sprite;
-        }
 
-        // πËø≠ »∏¿¸ (æ∆∑°∑Œ)
         SpriteRenderer temp = symbolSlots[0];
         for (int i = 0; i < symbolSlots.Length - 1; i++)
-        {
             symbolSlots[i] = symbolSlots[i + 1];
-        }
         symbolSlots[symbolSlots.Length - 1] = temp;
     }
 
-    // ∫ŒµÂ∑ØøÓ ¡§¡ˆ (EaseOut)
     private IEnumerator SmoothStop()
     {
-        // √÷¡æ ∞·∞˙∏¶ Ω…∫º ΩΩ∑‘ø° º≥¡§
         for (int i = 0; i < 3; i++)
         {
             SlotSymbol symbol = allSymbols.Find(s => s.symbolID == finalResult[i]);
             if (symbol != null)
-            {
                 symbolSlots[i].sprite = symbol.sprite;
-            }
         }
 
         float timer = 0f;
-        Vector2 startPos = reelContainer.position;
-        Vector2 targetPos = Vector2.zero;
+        Vector3 startPos = reelContainer.localPosition;
+        Vector3 targetPos = Vector3.zero;
 
         while (timer < stopDuration)
         {
             timer += Time.deltaTime;
             float t = timer / stopDuration;
-
-            // EaseOutCubic ƒø∫Í
             float easedT = 1f - Mathf.Pow(1f - t, 3f);
 
-            reelContainer.position = Vector2.Lerp(startPos, targetPos, easedT);
+            reelContainer.localPosition = Vector3.Lerp(startPos, targetPos, easedT);
             yield return null;
         }
 
-        reelContainer.position = targetPos;
+        reelContainer.localPosition = targetPos;
     }
 
-    // ∑£¥˝ Ω…∫º √ ±‚ º≥¡§
     private void SetRandomSymbols()
     {
         for (int i = 0; i < symbolSlots.Length; i++)
         {
             int randomSymbolID = reelStrip.GetRandomSymbol();
             SlotSymbol symbol = allSymbols.Find(s => s.symbolID == randomSymbolID);
-
             if (symbol != null)
-            {
                 symbolSlots[i].sprite = symbol.sprite;
-            }
         }
     }
 }
