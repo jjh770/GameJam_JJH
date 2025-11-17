@@ -7,45 +7,41 @@ public class ReelStrip : ScriptableObject
     [System.Serializable]
     public class SymbolWeight
     {
-        public int symbolID;
-        public int weight; // 가중치 (높을수록 자주 출현)
+        public int SymbolID;
+        public int Weight; 
     }
 
-    public List<SymbolWeight> symbolWeights = new List<SymbolWeight>();
-    private List<int> generatedStrip = new List<int>();
+    public List<SymbolWeight> SymbolWeights = new List<SymbolWeight>();
+    private List<int> _generatedStrip = new List<int>();
 
-    // 릴 스트립 생성
     public void GenerateStrip()
     {
-        generatedStrip.Clear();
+        _generatedStrip.Clear();
 
-        foreach (var sw in symbolWeights)
+        foreach (var sw in SymbolWeights)
         {
-            for (int i = 0; i < sw.weight; i++)
+            for (int i = 0; i < sw.Weight; i++)
             {
-                generatedStrip.Add(sw.symbolID);
+                _generatedStrip.Add(sw.SymbolID);
             }
         }
 
-        // 섞기 (패턴 방지)
-        Shuffle(generatedStrip);
+        Shuffle(_generatedStrip);
     }
 
-    // 랜덤 심볼 가져오기
     public int GetRandomSymbol()
     {
-        if (generatedStrip.Count == 0)
+        if (_generatedStrip.Count == 0)
             GenerateStrip();
 
-        return generatedStrip[Random.Range(0, generatedStrip.Count)];
+        return _generatedStrip[UnityEngine.Random.Range(0, _generatedStrip.Count)];
     }
 
-    // Fisher-Yates 셔플
     private void Shuffle<T>(List<T> list)
     {
         for (int i = list.Count - 1; i > 0; i--)
         {
-            int randomIndex = Random.Range(0, i + 1);
+            int randomIndex = UnityEngine.Random.Range(0, i + 1);
             T temp = list[i];
             list[i] = list[randomIndex];
             list[randomIndex] = temp;

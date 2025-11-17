@@ -3,14 +3,14 @@ using UnityEngine;
 [System.Serializable]
 public class SlotSymbol
 {
-    public int symbolID; // 0~7 (8°¡Áö ½Éº¼)
-    public Sprite sprite;
-    public string symbolName;
+    public int SymbolID; // 0~7 (8ê°€ì§€ ì‹¬ë³¼)
+    public Sprite Sprite;
+    public string SymbolName;
 
     public SlotSymbol(int id, Sprite spr, string name)
     {
-        symbolID = id;
-        sprite = spr;
-        symbolName = name;
+        SymbolID = id;
+        Sprite = spr;
+        SymbolName = name;
     }
 }
