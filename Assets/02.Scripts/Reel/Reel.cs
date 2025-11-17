@@ -1,169 +1,270 @@
 using UnityEngine;
-using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
+using DG.Tweening;
 
 public class Reel : MonoBehaviour
 {
     [Header("Reel Components")]
-    [SerializeField] private SpriteRenderer[] symbolSlots; // Image ¥ÎΩ≈
-    [SerializeField] private Transform reelContainer; // RectTransform ¥ÎΩ≈
+    [SerializeField] private Transform _reelContainer;
+    [SerializeField] private GameObject[] _symbol;
+    private SpriteRenderer[] _symbolSlots;
 
     [Header("Reel Settings")]
-    [SerializeField] private float spinSpeed = 1000f; // »∏¿¸ º”µµ
-    [SerializeField] private float minSpinDuration = 1.5f; // √÷º“ »∏¿¸ Ω√∞£
-    [SerializeField] private float stopDuration = 0.5f; // ¡§¡ˆ±Ó¡ˆ ∞…∏Æ¥¬ Ω√∞£
-    [SerializeField] private float symbolHeight = 200f; // ∞¢ Ω…∫º¿« ≥Ù¿Ã
+    [SerializeField] private float _spinSpeed = 10f;
+    [SerializeField] private float _minSpinDuration = 1.5f;
+    [SerializeField] private float _stopDuration = 0.5f;
+    [SerializeField] private float _symbolHeight = 2f;
 
-    private ReelStrip reelStrip;
-    private List<SlotSymbol> allSymbols;
-    private bool isSpinning = false;
-    private bool shouldStop = false;
-    private int[] finalResult = new int[3]; // √÷¡æ ∞·∞˙ (¿ß, ¡ﬂæ”, æ∆∑°)
+    private ReelStrip _reelStrip;
+    private List<SlotSymbol> _allSymbols;
+    private bool _isSpinning = false;
+    private bool _shouldStop = false;
+    private int[] _finalResult = new int[3];
 
-    // Ω…∫º «Æ (¿ÁªÁøÎ)
-    private List<Image> symbolPool = new List<Image>();
-    private Queue<int> upcomingSymbols = new Queue<int>();
+    private List<GameObject> _symbolPool = new List<GameObject>();
 
-    public bool IsSpinning => isSpinning;
-    public int[] FinalResult => finalResult;
+    // Í≤∞Í≥º Ïã¨Î≥ºÏùÑ ÎØ∏Î¶¨ ÌÅêÏóê ÎÑ£Ïñ¥ ÏûêÏó∞Ïä§ÎüΩÍ≤å ÏàúÌôò
+    private Queue<int> _resultQueue = new Queue<int>();
+    private bool _resultPrepared = false;
 
-    // √ ±‚»≠
+    public bool IsSpinning => _isSpinning;
+    public int[] FinalResult => _finalResult;
+
+    private void Start()
+    {
+        _symbolSlots = new SpriteRenderer[_symbol.Length];
+
+        for (int i = 0; i < _symbol.Length; i++)
+        {
+            _symbolSlots[i] = _symbol[i].GetComponent<SpriteRenderer>();
+        }
+    }
     public void Initialize(ReelStrip strip, List<SlotSymbol> symbols)
     {
-        reelStrip = strip;
-        allSymbols = symbols;
-        reelStrip.GenerateStrip();
+        _reelStrip = strip;
+        _allSymbols = symbols;
+        _reelStrip.GenerateStrip();
 
-        // √ ±‚ Ω…∫º º≥¡§
+        CreateSymbolPool();
         SetRandomSymbols();
     }
 
-    // Ω∫«… Ω√¿€
-    public void StartSpin()
+    private void CreateSymbolPool()
     {
-        if (!isSpinning)
+        foreach (var slot in _symbolSlots)
         {
-            StartCoroutine(SpinRoutine());
+            SymbolIdentifier identifier = slot.gameObject.GetComponent<SymbolIdentifier>();
+            if (identifier == null)
+            {
+                identifier = slot.gameObject.AddComponent<SymbolIdentifier>();
+            }
+
+            _symbolPool.Add(slot.gameObject);
         }
+
+        // ÏúÑÏ™Ω Ï∂îÍ∞Ä Ïã¨Î≥º
+        GameObject topSymbol = new GameObject("Symbol_Top");
+        topSymbol.transform.SetParent(_reelContainer);
+        topSymbol.transform.localPosition = new Vector3(0, _symbolHeight * 2, 0);
+
+        SymbolIdentifier topIdentifier = topSymbol.AddComponent<SymbolIdentifier>();
+        SpriteRenderer topRenderer = topSymbol.GetComponent<SpriteRenderer>();
+        topRenderer.sortingLayerName = "Symbol";
+        topRenderer.maskInteraction = SpriteMaskInteraction.VisibleInsideMask;
+
+        _symbolPool.Insert(0, topSymbol);
+
+        // ÏïÑÎûòÏ™Ω Ï∂îÍ∞Ä Ïã¨Î≥º
+        GameObject bottomSymbol = new GameObject("Symbol_Bottom");
+        bottomSymbol.transform.SetParent(_reelContainer);
+        bottomSymbol.transform.localPosition = new Vector3(0, -_symbolHeight * 2, 0);
+
+        SymbolIdentifier bottomIdentifier = bottomSymbol.AddComponent<SymbolIdentifier>();
+        SpriteRenderer bottomRenderer = bottomSymbol.GetComponent<SpriteRenderer>();
+        bottomRenderer.sortingLayerName = "Symbol";
+        bottomRenderer.maskInteraction = SpriteMaskInteraction.VisibleInsideMask;
+
+        _symbolPool.Add(bottomSymbol);
     }
 
-    // Ω∫«… ¡§¡ˆ Ω≈»£
+
+
+    public void StartSpin()
+    {
+        if (!_isSpinning)
+            StartCoroutine(SpinRoutine());
+    }
+
     public void StopSpin(int[] targetSymbols = null)
     {
-        shouldStop = true;
+        _shouldStop = true;
 
-        // ∏Ò«• Ω…∫º¿Ã ¿÷¿∏∏È º≥¡§ (µπˆ±◊øÎ)
-        if (targetSymbols != null && targetSymbols.Length == 3)
+        if (targetSymbols != null)
         {
-            finalResult = targetSymbols;
+            _finalResult = targetSymbols;
+            Debug.Log("?");
         }
         else
         {
-            // ∑£¥˝ ∞·∞˙ ª˝º∫
             for (int i = 0; i < 3; i++)
-            {
-                finalResult[i] = reelStrip.GetRandomSymbol();
-            }
+                _finalResult[i] = _reelStrip.GetRandomSymbol();
         }
+
+        // Í≤∞Í≥ºÎ•º ÌÅêÏóê Ï§ÄÎπÑ (ÎÇòÏ§ëÏóê ÏûêÏó∞Ïä§ÎüΩÍ≤å ÏàúÌôòÎê®)
+        PrepareResultQueue();
     }
 
-    // Ω∫«… ∑Á∆æ
+    // Í≤∞Í≥º Ïã¨Î≥ºÏùÑ ÌÅêÏóê Ï§ÄÎπÑ (Ïó≠ÏàúÏúºÎ°ú - ÏúÑÏóêÏÑú ÏïÑÎûòÎ°ú ÎÇ¥Î†§Ïò§ÎØÄÎ°ú)
+    private void PrepareResultQueue()
+    {
+        _resultQueue.Clear();
+
+        // ÏúÑÏóêÏÑúÎ∂ÄÌÑ∞ Ï∞®Î°ÄÎ°ú ÎÇòÌÉÄÎÇ† ÏàúÏÑú
+        // Ï∂îÍ∞Ä ÎûúÎç§ Ïã¨Î≥º Î™á Í∞ú + ÏµúÏ¢Ö Í≤∞Í≥º 3Í∞ú
+        for (int i = 0; i < 3; i++)
+        {
+            _resultQueue.Enqueue(_reelStrip.GetRandomSymbol());
+        }
+
+        // ÏµúÏ¢Ö Í≤∞Í≥º Ïã¨Î≥ºÎì§ (ÏúÑ ‚Üí Ï§ëÍ∞Ñ ‚Üí ÏïÑÎûò)
+        for (int i = 0; i < 3; i++)
+        {
+            _resultQueue.Enqueue(_finalResult[i]);
+        }
+
+        _resultPrepared = true;
+    }
+
     private IEnumerator SpinRoutine()
     {
-        isSpinning = true;
-        shouldStop = false;
+        _isSpinning = true;
+        _shouldStop = false;
+        _resultPrepared = false;
         float elapsedTime = 0f;
-        float currentSpeed = spinSpeed;
 
-        // ∫¸∏£∞‘ »∏¿¸
-        while (!shouldStop || elapsedTime < minSpinDuration)
+        while (!_shouldStop || elapsedTime < _minSpinDuration)
         {
-            // Ω…∫º¿ª æ∆∑°∑Œ ¿Ãµø (π´«— Ω∫≈©∑—)
-            reelContainer.position += Vector3.down * spinSpeed * Time.deltaTime;
-
-            // Ω…∫º¿Ã ¿œ¡§ ∞≈∏Æ ¿Ãµø«œ∏È ¿ÁπËƒ°
-            if (reelContainer.position.y <= -symbolHeight)
+            foreach (var symbolObj in _symbolPool)
             {
-                reelContainer.position += new Vector3(0, symbolHeight);
-                ShiftSymbolsDown();
+                symbolObj.transform.position += Vector3.down * _spinSpeed * Time.deltaTime;
+            }
+
+            if (_symbolPool[_symbolPool.Count - 1].transform.localPosition.y < -_symbolHeight * 2.5f)
+            {
+                RecycleBottomSymbol();
             }
 
             elapsedTime += Time.deltaTime;
             yield return null;
         }
 
-        // ∫ŒµÂ∑¥∞‘ ¡§¡ˆ
         yield return StartCoroutine(SmoothStop());
-
-        isSpinning = false;
+        _isSpinning = false;
     }
 
-    // Ω…∫º º¯»Ø (π´«— Ω∫≈©∑—)
-    private void ShiftSymbolsDown()
+    private void RecycleBottomSymbol()
     {
-        // ∏« ¿ß Ω…∫º¿ª ªı∑ŒøÓ ∑£¥˝ Ω…∫º∑Œ ±≥√º
-        int newSymbolID = reelStrip.GetRandomSymbol();
-        SlotSymbol newSymbol = allSymbols.Find(s => s.symbolID == newSymbolID);
+        GameObject bottomSymbol = _symbolPool[_symbolPool.Count - 1];
+        GameObject topSymbol = _symbolPool[0];
 
-        if (newSymbol != null)
-        {
-            symbolSlots[0].sprite = newSymbol.sprite;
-        }
+        float newY = topSymbol.transform.localPosition.y + _symbolHeight;
+        bottomSymbol.transform.localPosition = new Vector3(0, newY, 0);
 
-        // πËø≠ »∏¿¸ (æ∆∑°∑Œ)
-        SpriteRenderer temp = symbolSlots[0];
-        for (int i = 0; i < symbolSlots.Length - 1; i++)
+        SymbolIdentifier identifier = bottomSymbol.GetComponent<SymbolIdentifier>();
+        if (identifier != null)
         {
-            symbolSlots[i] = symbolSlots[i + 1];
-        }
-        symbolSlots[symbolSlots.Length - 1] = temp;
-    }
-
-    // ∫ŒµÂ∑ØøÓ ¡§¡ˆ (EaseOut)
-    private IEnumerator SmoothStop()
-    {
-        // √÷¡æ ∞·∞˙∏¶ Ω…∫º ΩΩ∑‘ø° º≥¡§
-        for (int i = 0; i < 3; i++)
-        {
-            SlotSymbol symbol = allSymbols.Find(s => s.symbolID == finalResult[i]);
-            if (symbol != null)
+            if (_resultPrepared && _resultQueue.Count > 0)
             {
-                symbolSlots[i].sprite = symbol.sprite;
+                // ÌÅêÏóêÏÑú Í≤∞Í≥º Ïã¨Î≥º ID Í∞ÄÏ†∏Ïò§Í∏∞
+                int symbolID = _resultQueue.Dequeue();
+                identifier.SetSymbolByID(symbolID, _allSymbols);
+            }
+            else
+            {
+                // ÎûúÎç§ Ïã¨Î≥º
+                identifier.SetRandomSymbol(_reelStrip, _allSymbols);
             }
         }
 
-        float timer = 0f;
-        Vector2 startPos = reelContainer.position;
-        Vector2 targetPos = Vector2.zero;
+        _symbolPool.RemoveAt(_symbolPool.Count - 1);
+        _symbolPool.Insert(0, bottomSymbol);
+    }
 
-        while (timer < stopDuration)
+    public SymbolIdentifier GetSymbolIdentifierAtRow(int row)
+    {
+        // row: 0 = ÏúÑ, 1 = Ï§ëÍ∞Ñ, 2 = ÏïÑÎûò
+        // _symbolPool Íµ¨Ï°∞: [0]=Îß®ÏúÑÏ∂îÍ∞Ä, [1]=ÏúÑ, [2]=Ï§ëÍ∞Ñ, [3]=ÏïÑÎûò, [4]=Îß®ÏïÑÎûòÏ∂îÍ∞Ä
+        int poolIndex = row + 1; // row 0,1,2 ‚Üí poolIndex 1,2,3
+
+        if (poolIndex >= 0 && poolIndex < _symbolPool.Count)
+        {
+            return _symbolPool[poolIndex].GetComponent<SymbolIdentifier>();
+        }
+        return null;
+    }
+
+    // Î∂ÄÎìúÎüΩÍ≤å Î©àÏ∂îÍ∏∞
+    private IEnumerator SmoothStop()
+    {
+        float timer = 0f;
+
+        while (timer < _stopDuration)
         {
             timer += Time.deltaTime;
-            float t = timer / stopDuration;
-
-            // EaseOutCubic ƒø∫Í
+            float t = timer / _stopDuration;
             float easedT = 1f - Mathf.Pow(1f - t, 3f);
+            float currentSpeed = Mathf.Lerp(_spinSpeed, 0f, easedT);
 
-            reelContainer.position = Vector2.Lerp(startPos, targetPos, easedT);
+            foreach (var symbolObj in _symbolPool)
+            {
+                symbolObj.transform.position += Vector3.down * currentSpeed * Time.deltaTime;
+            }
+
+            if (_symbolPool[_symbolPool.Count - 1].transform.localPosition.y < -_symbolHeight * 2.5f)
+            {
+                RecycleBottomSymbol();
+            }
+
             yield return null;
         }
 
-        reelContainer.position = targetPos;
+        SnapToGrid();
+        yield return new WaitForSeconds(0.15f);
+        UpdateFinalResult();
     }
-
-    // ∑£¥˝ Ω…∫º √ ±‚ º≥¡§
+    // Í∑∏Î¶¨ÎìúÏóê Îî± ÎßûÍ≤å Ï†ïÎ†¨
+    private void SnapToGrid()
+    {
+        for (int i = 0; i < _symbolPool.Count; i++)
+        {
+            Vector3 currenPosition = _symbolPool[i].transform.localPosition;
+            float targetY = _symbolHeight * (2 - i);
+            _symbolPool[i].transform.DOLocalMove(new Vector3(0, targetY, 0), 0.1f).SetEase(Ease.Linear);
+        }
+    }
+    // ÏãúÏûë Ïãú ÎûúÎç§ÌïòÍ≤å Î∞∞Ïπò
     private void SetRandomSymbols()
     {
-        for (int i = 0; i < symbolSlots.Length; i++)
+        for (int i = 0; i < _symbolPool.Count; i++)
         {
-            int randomSymbolID = reelStrip.GetRandomSymbol();
-            SlotSymbol symbol = allSymbols.Find(s => s.symbolID == randomSymbolID);
-
-            if (symbol != null)
+            SymbolIdentifier identifier = _symbolPool[i].GetComponent<SymbolIdentifier>();
+            if (identifier != null)
             {
-                symbolSlots[i].sprite = symbol.sprite;
+                identifier.SetRandomSymbol(_reelStrip, _allSymbols);
             }
+        }
+    }
+    // 
+    private void UpdateFinalResult()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            int poolIndex = i + 1;
+            SymbolIdentifier identifier = _symbolPool[poolIndex].GetComponent<SymbolIdentifier>();
+            if (identifier == null) return;
+            _finalResult[i] = identifier.SymbolID;
+
         }
     }
 }

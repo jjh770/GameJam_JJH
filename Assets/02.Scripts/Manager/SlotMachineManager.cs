@@ -1,85 +1,168 @@
-using UnityEngine;
-using UnityEngine.UI;
+using DG.Tweening;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
 
 public class SlotMachineManager : MonoBehaviour
 {
     [Header("Reels")]
-    [SerializeField] private Reel[] reels; // 5°³ÀÇ ¸±
-
+    [SerializeField] private Reel[] _reels; // 5ê°œì˜ ë¦´
     [Header("Symbols")]
-    [SerializeField] private List<SlotSymbol> allSymbols = new List<SlotSymbol>();
-
+    [SerializeField] private List<SlotSymbol> _allSymbols = new List<SlotSymbol>();
     [Header("Reel Strips")]
-    [SerializeField] private ReelStrip[] reelStrips; // 5°³ (¸±¸¶´Ù ´Ù¸¥ È®·ü °¡´É)
-
+    [SerializeField] private ReelStrip[] _reelStrips; // 5ê°œ (ë¦´ë§ˆë‹¤ ë‹¤ë¥¸ í™•ë¥  ê°€ëŠ¥)
     [Header("UI")]
-    [SerializeField] private Button spinButton;
+    [SerializeField] private Button _spinButton;
+    [SerializeField] private Button _testButton;
+    [SerializeField] private TMPro.TextMeshProUGUI _winAmountText;
+    [SerializeField] private float _shakeDuration = 0.3f;
+    [SerializeField] private float _shakeStrength = 10f;
 
     [Header("Spin Settings")]
-    [SerializeField] private float reelStopDelay = 0.15f; // ¸± °£ Á¤Áö °£°İ
+    [SerializeField] private float _reelStopDelay = 0.15f; // ë¦´ ê°„ ì •ì§€ ê°„ê²©
+    [SerializeField] private int _betAmount = 10; // ë² íŒ…ì•¡
 
-    private bool isSpinning = false;
+    [Header("Result Checker")]
+    [SerializeField] private SlotResultChecker _resultChecker;
+
+    private bool _isSpinning = false;
+    private MoneyManager _moneyManager;
 
     void Start()
     {
         InitializeSlotMachine();
-        spinButton.onClick.AddListener(OnSpinButtonClick);
+        _moneyManager = MoneyManager.Instance;
+        _spinButton.onClick.AddListener(OnSpinButtonClick);
+        _testButton.onClick.AddListener(OnTestButtonClick);
     }
 
     private void InitializeSlotMachine()
     {
-        // °¢ ¸± ÃÊ±âÈ­
-        for (int i = 0; i < reels.Length; i++)
+        // ê° ë¦´ ì´ˆê¸°í™”
+        for (int i = 0; i < _reels.Length; i++)
         {
-            ReelStrip strip = (i < reelStrips.Length) ? reelStrips[i] : reelStrips[0];
-            reels[i].Initialize(strip, allSymbols);
+            ReelStrip strip = (i < _reelStrips.Length) ? _reelStrips[i] : _reelStrips[0];
+            _reels[i].Initialize(strip, _allSymbols);
         }
     }
 
     public void OnSpinButtonClick()
     {
-        if (!isSpinning)
+        if (_isSpinning) return;
+
+        StartCoroutine(SpinSequence());
+    }
+    public void OnTestButtonClick()
+    {
+        int[][] debugResult = new int[][]
         {
-            StartCoroutine(SpinSequence());
-        }
+            new int[] {0, 0, 0},
+            new int[] {0, 0, 0},
+            new int[] {0, 0, 0},
+            new int[] {0, 0, 0},
+            new int[] {0, 0, 0}
+        };
+        SetDebugResult(debugResult);
+        ProcessResults();
     }
 
     private IEnumerator SpinSequence()
     {
-        isSpinning = true;
-        spinButton.interactable = false;
+        if (!_moneyManager.SpendMoney(_betAmount)) yield break;
+        _isSpinning = true;
+        _spinButton.interactable = false;
 
-        // ¸ğµç ¸± µ¿½Ã È¸Àü ½ÃÀÛ
-        foreach (var reel in reels)
+        foreach (var reel in _reels)
         {
             reel.StartSpin();
         }
 
-        // Àá½Ã ´ë±â ÈÄ ¼øÂ÷ Á¤Áö
         yield return new WaitForSeconds(1.0f);
 
-        // ¿ŞÂÊºÎÅÍ Â÷·Ê·Î Á¤Áö
-        for (int i = 0; i < reels.Length; i++)
+        for (int i = 0; i < _reels.Length; i++)
         {
-            reels[i].StopSpin();
-            yield return new WaitForSeconds(reelStopDelay);
+            _reels[i].StopSpin();
+            yield return new WaitForSeconds(_reelStopDelay);
         }
 
-        // ¸ğµç ¸±ÀÌ ¿ÏÀüÈ÷ ¸ØÃâ ¶§±îÁö ´ë±â
         yield return new WaitUntil(() => AllReelsStopped());
 
-        // °á°ú Ã³¸®
-        ProcessResults();
+        // ê²°ê³¼ ì²´í¬
+        int[,] resultGrid = new int[3, 5];
+        for (int col = 0; col < 5; col++)
+        {
+            for (int row = 0; row < 3; row++)
+            {
+                resultGrid[row, col] = _reels[col].FinalResult[row];
+            }
+        }
 
-        isSpinning = false;
-        spinButton.interactable = true;
+        var results = _resultChecker.CheckResults(resultGrid);
+
+        // í•˜ì´ë¼ì´íŠ¸ + ëˆ ì§€ê¸‰
+        if (results.Count > 0)
+        {
+            yield return StartCoroutine(HighlightAndPayPatterns(results));
+        }
+
+        _isSpinning = false;
+        _spinButton.interactable = true;
+    }
+
+    private IEnumerator HighlightAndPayPatterns(List<(string patternName, float multiplier, List<(int row, int col)> matchedPositions)> results)
+    {
+        _spinButton.interactable = false;
+        int totalWinAmount = 0;
+
+        foreach (var result in results)
+        {
+            Sequence sequence = DOTween.Sequence();
+
+            foreach (var pos in result.matchedPositions)
+            {
+                var symbolIdentifier = _reels[pos.col].GetSymbolIdentifierAtRow(pos.row);
+                if (symbolIdentifier != null)
+                {
+                    Sequence blink = symbolIdentifier.BlinkHighlight(2, 0.2f);
+                    sequence.Join(blink);
+                }
+            }
+
+            int winAmount = Mathf.RoundToInt(_betAmount * result.multiplier);
+            totalWinAmount += winAmount;
+
+            yield return sequence.WaitForCompletion();
+
+            // íŒ¨í„´ë§ˆë‹¤ ëˆ„ì  ì ìˆ˜ ì—…ë°ì´íŠ¸ + í”ë“¤ë¦¼
+            _winAmountText.text = $"+{totalWinAmount}";
+            _winAmountText.rectTransform.DOShakeAnchorPos(0.2f, new Vector3(10f, 0, 0), 10, 0);
+
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        // ìµœì¢… í™•ì •
+        if (totalWinAmount > 0)
+        {
+            // ë§ˆì§€ë§‰ ê°•ì¡° í”ë“¤ë¦¼
+            _winAmountText.rectTransform.DOShakeAnchorPos(0.3f, new Vector3(20f, 0, 0), 15, 0);
+            _winAmountText.transform.DOScale(1.5f, 0.3f).SetLoops(2, LoopType.Yoyo);
+
+            yield return new WaitForSeconds(0.8f);
+
+            _moneyManager.AddMoney(totalWinAmount);
+            Debug.Log($"Total Win: {totalWinAmount}");
+
+            // í…ìŠ¤íŠ¸ ì´ˆê¸°í™” (ì„ íƒì‚¬í•­)
+            _winAmountText.text = "";
+        }
+
+        _spinButton.interactable = true;
     }
 
     private bool AllReelsStopped()
     {
-        foreach (var reel in reels)
+        foreach (var reel in _reels)
         {
             if (reel.IsSpinning)
                 return false;
@@ -87,27 +170,65 @@ public class SlotMachineManager : MonoBehaviour
         return true;
     }
 
-    private void ProcessResults()
+    private IEnumerator HighlightMatchedPatterns(List<(string patternName, float multiplier, List<(int row, int col)> matchedPositions)> results)
     {
-        // 3x5 °á°ú ¸ÅÆ®¸¯½º Ãâ·Â (µğ¹ö±×)
-        for (int row = 0; row < 3; row++)
+        _spinButton.interactable = false;
+
+        foreach (var result in results)
         {
-            string rowResult = $"Row {row}: ";
-            for (int col = 0; col < 5; col++)
+            Sequence sequence = DOTween.Sequence();
+
+            // ê° ì‹¬ë³¼ì˜ ê¹œë¹¡ì„ì„ ì‹œí€€ìŠ¤ì— ì¶”ê°€ (ë™ì‹œ ì‹¤í–‰)
+            foreach (var pos in result.matchedPositions)
             {
-                int symbolID = reels[col].FinalResult[row];
-                rowResult += $"[{symbolID}] ";
+                var symbolIdentifier = _reels[pos.col].GetSymbolIdentifierAtRow(pos.row);
+                if (symbolIdentifier != null)
+                {
+                    Sequence blink = symbolIdentifier.BlinkHighlight();
+                    sequence.Join(blink); 
+                }
             }
-            Debug.Log(rowResult);
+
+            // ì‹œí€€ìŠ¤ê°€ ëë‚  ë•Œê¹Œì§€ ëŒ€ê¸°
+            yield return sequence.WaitForCompletion();
+            yield return new WaitForSeconds(0.15f);
+        }
+
+        _spinButton.interactable = true;
+    }
+
+
+
+    private IEnumerator ProcessResults()
+    {
+        int[,] resultGrid = new int[3, 5];
+        for (int col = 0; col < 5; col++)
+        {
+            for (int row = 0; row < 3; row++)
+            {
+                resultGrid[row, col] = _reels[col].FinalResult[row];
+            }
+        }
+
+        var results = _resultChecker.CheckResults(resultGrid);
+
+        foreach (var result in results)
+        {
+            Debug.Log($"Pattern: {result.patternName}, Multiplier: {result.multiplier}");
+        }
+
+        if (results.Count > 0)
+        {
+            yield return StartCoroutine(HighlightMatchedPatterns(results));
         }
     }
 
-    // µğ¹ö±×: Æ¯Á¤ °á°ú °­Á¦ ¼³Á¤
+    // ë””ë²„ê·¸: íŠ¹ì • ê²°ê³¼ ê°•ì œ ì„¤ì •
     public void SetDebugResult(int[][] debugResult)
     {
-        for (int i = 0; i < reels.Length && i < debugResult.Length; i++)
+        for (int i = 0; i < _reels.Length && i < debugResult.Length; i++)
         {
-            reels[i].StopSpin(debugResult[i]);
+            _reels[i].StopSpin(debugResult[i]);
         }
     }
 }
