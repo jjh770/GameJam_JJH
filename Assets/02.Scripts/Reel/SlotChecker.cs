@@ -62,27 +62,32 @@ public class SlotResultChecker : MonoBehaviour
         (new int[] {0,1,2,0,1,2,0,1,2,0,1,2,0,1,2}, new int[] {0,0,0,1,1,1,2,2,2,3,3,3,4,4,4}, 10.0f, "잭팟"),
     };
 
-    public List<(string patternName, float multiplier, List<(int row, int col)> matchedPositions)> CheckResults(int[,] resultGrid)
+    // 심볼 ID도 함께 반환 (수정된 반환 타입)
+    public List<(string patternName, float multiplier, int symbolID, List<(int row, int col)> matchedPositions)> CheckResults(int[,] resultGrid)
     {
         _resultGrid = resultGrid;
-        var results = new List<(string patternName, float multiplier, List<(int row, int col)>)>();
+        var results = new List<(string patternName, float multiplier, int symbolID, List<(int row, int col)>)>();
 
         foreach (var payline in _paylines)
         {
-            if (IsPatternMatched(payline.row, payline.col, out var matchedPositions))
+            if (IsPatternMatched(payline.row, payline.col, out var matchedPositions, out int symbolID))
             {
-                results.Add((payline.patternName, payline.multiplier, matchedPositions));
+                results.Add((payline.patternName, payline.multiplier, symbolID, matchedPositions));
             }
         }
 
         return results;
     }
 
-    private bool IsPatternMatched(int[] rows, int[] cols, out List<(int row, int col)> matchedPositions)
+    // symbolID도 out 파라미터로 반환하도록 수정
+    private bool IsPatternMatched(int[] rows, int[] cols, out List<(int row, int col)> matchedPositions, out int symbolID)
     {
         matchedPositions = new List<(int row, int col)>();
+        symbolID = -1;
 
+        // 첫 번째 심볼 ID 저장
         int symbol = _resultGrid[rows[0], cols[0]];
+        symbolID = symbol;
         matchedPositions.Add((rows[0], cols[0]));
 
         for (int i = 1; i < rows.Length; i++)
@@ -90,6 +95,7 @@ public class SlotResultChecker : MonoBehaviour
             if (_resultGrid[rows[i], cols[i]] != symbol)
             {
                 matchedPositions.Clear();
+                symbolID = -1;
                 return false;
             }
             matchedPositions.Add((rows[i], cols[i]));

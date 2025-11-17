@@ -15,7 +15,6 @@ public class SlotMachineManager : MonoBehaviour
     [Header("UI")]
     [SerializeField] private Button _spinButton;
     [SerializeField] private Button _testButton;
-    [SerializeField] private TMPro.TextMeshProUGUI _winAmountText;
     [SerializeField] private float _shakeDuration = 0.3f;
     [SerializeField] private float _shakeStrength = 10f;
 
@@ -28,11 +27,12 @@ public class SlotMachineManager : MonoBehaviour
 
     private bool _isSpinning = false;
     private MoneyManager _moneyManager;
-
+    private BetManager _betManager;
     void Start()
     {
         InitializeSlotMachine();
         _moneyManager = MoneyManager.Instance;
+        _betManager = BetManager.Instance;
         _spinButton.onClick.AddListener(OnSpinButtonClick);
         _testButton.onClick.AddListener(OnTestButtonClick);
     }
@@ -50,7 +50,12 @@ public class SlotMachineManager : MonoBehaviour
     public void OnSpinButtonClick()
     {
         if (_isSpinning) return;
-
+        // BetManager를 통한 배팅 확인 및 차감
+        if (!_betManager.CanPlaceBet())
+        {
+            Debug.LogWarning("잔액이 부족합니다!");
+            return;
+        }
         StartCoroutine(SpinSequence());
     }
     public void OnTestButtonClick()
@@ -69,9 +74,11 @@ public class SlotMachineManager : MonoBehaviour
 
     private IEnumerator SpinSequence()
     {
-        if (!_moneyManager.SpendMoney(_betAmount)) yield break;
+        // BetManager를 통해 배팅 금액 차감
+        if (!_betManager.PlaceBet()) yield break;
         _isSpinning = true;
         _spinButton.interactable = false;
+        _betManager.SetBetButtonsInteractable(false);
 
         foreach (var reel in _reels)
         {
@@ -108,9 +115,10 @@ public class SlotMachineManager : MonoBehaviour
 
         _isSpinning = false;
         _spinButton.interactable = true;
+        _betManager.SetBetButtonsInteractable(true);
     }
 
-    private IEnumerator HighlightAndPayPatterns(List<(string patternName, float multiplier, List<(int row, int col)> matchedPositions)> results)
+    private IEnumerator HighlightAndPayPatterns(List<(string patternName, float multiplier, int symbolID, List<(int row, int col)> matchedPositions)> results)
     {
         _spinButton.interactable = false;
         int totalWinAmount = 0;
@@ -129,14 +137,21 @@ public class SlotMachineManager : MonoBehaviour
                 }
             }
 
-            int winAmount = Mathf.RoundToInt(_betAmount * result.multiplier);
-            totalWinAmount += winAmount;
+            // 심볼 배율 가져오기
+            SlotSymbol matchedSymbol = _allSymbols.Find(s => s.SymbolID == result.symbolID);
+            float symbolMultiplier = matchedSymbol != null ? matchedSymbol.SymbolMultiplier : 1.0f;
+            Debug.Log(symbolMultiplier);
+            // 최종 배율 = 패턴 배율 × 심볼 배율
+            float finalMultiplier = result.multiplier * symbolMultiplier;
+
+            // 승리 금액 계산
+            int actualWinAmount = _betManager.CalculateWinAmount(finalMultiplier);
+            totalWinAmount += actualWinAmount;
 
             yield return sequence.WaitForCompletion();
 
-            // 패턴마다 누적 점수 업데이트 + 흔들림
-            _winAmountText.text = $"+{totalWinAmount}";
-            _winAmountText.rectTransform.DOShakeAnchorPos(0.2f, new Vector3(10f, 0, 0), 10, 0);
+            _moneyManager.WinMoney(totalWinAmount);
+
 
             yield return new WaitForSeconds(0.5f);
         }
@@ -144,17 +159,21 @@ public class SlotMachineManager : MonoBehaviour
         // 최종 확정
         if (totalWinAmount > 0)
         {
-            // 마지막 강조 흔들림
-            _winAmountText.rectTransform.DOShakeAnchorPos(0.3f, new Vector3(20f, 0, 0), 15, 0);
-            _winAmountText.transform.DOScale(1.5f, 0.3f).SetLoops(2, LoopType.Yoyo);
-
-            yield return new WaitForSeconds(0.8f);
+            _moneyManager.TotalWinMoney(totalWinAmount);
+            if (totalWinAmount >= 500)
+            {
+                yield return new WaitForSeconds(1.5f);
+            }
+            else
+            {
+                yield return new WaitForSeconds(0.8f);
+            }
 
             _moneyManager.AddMoney(totalWinAmount);
             Debug.Log($"Total Win: {totalWinAmount}");
 
             // 텍스트 초기화 (선택사항)
-            _winAmountText.text = "";
+            _moneyManager.InitWinMoney();
         }
 
         _spinButton.interactable = true;
@@ -170,7 +189,7 @@ public class SlotMachineManager : MonoBehaviour
         return true;
     }
 
-    private IEnumerator HighlightMatchedPatterns(List<(string patternName, float multiplier, List<(int row, int col)> matchedPositions)> results)
+    private IEnumerator HighlightMatchedPatterns(List<(string patternName, float multiplier, int symbolID, List<(int row, int col)> matchedPositions)> results)
     {
         _spinButton.interactable = false;
 

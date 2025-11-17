@@ -31,7 +31,7 @@ public class Reel : MonoBehaviour
     public bool IsSpinning => _isSpinning;
     public int[] FinalResult => _finalResult;
 
-    private void Start()
+    private void Awake()
     {
         _symbolSlots = new SpriteRenderer[_symbol.Length];
 

@@ -14,18 +14,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SymbolWeights:
   - SymbolID: 0
-    Weight: 10
+    Weight: 5
   - SymbolID: 2
-    Weight: 10
+    Weight: 5
   - SymbolID: 2
-    Weight: 10
+    Weight: 4
   - SymbolID: 3
-    Weight: 10
+    Weight: 4
   - SymbolID: 4
-    Weight: 10
+    Weight: 3
   - SymbolID: 5
-    Weight: 10
+    Weight: 3
   - SymbolID: 6
-    Weight: 5
+    Weight: 2
   - SymbolID: 7
-    Weight: 5
+    Weight: 1

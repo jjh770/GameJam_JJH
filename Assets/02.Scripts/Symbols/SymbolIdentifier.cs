@@ -8,7 +8,7 @@ public class SymbolIdentifier : MonoBehaviour
     private SpriteRenderer _spriteRenderer;
     private Color _HighlightColor = new Color(1, 1, 1, 0.5f);
     private Color _originalColor = new Color(1, 1, 1, 1);
-
+    private ParticleManager _particleManager;
     private void Awake()
     {
         _spriteRenderer = GetComponent<SpriteRenderer>();
@@ -16,6 +16,12 @@ public class SymbolIdentifier : MonoBehaviour
         {
             _spriteRenderer = gameObject.AddComponent<SpriteRenderer>();
         }
+    }
+
+    private void Start()
+    {
+        _particleManager = ParticleManager.Instance;
+        
     }
 
     public Sequence BlinkHighlight(int blinkCount = 3, float blinkDuration = 0.2f)
@@ -28,6 +34,10 @@ public class SymbolIdentifier : MonoBehaviour
         {
             blinkSequence.Append(_spriteRenderer.DOColor(_HighlightColor, blinkDuration * 0.5f));
             blinkSequence.Join(transform.DOPunchScale(Vector3.one * 0.1f, blinkDuration, 2, 0.5f));
+            blinkSequence.JoinCallback(() =>
+            {
+                _particleManager.PlayParticle("Star_Blue", transform.position);
+            });
             blinkSequence.Append(_spriteRenderer.DOColor(_originalColor, blinkDuration * 0.5f));
         }
 
