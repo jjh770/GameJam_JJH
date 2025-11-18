@@ -94,7 +94,29 @@ public class PopupManager : MonoBehaviour
             null
         );
     }
-
+    // 게임 승리 팝업
+    public void ShowGameWinPopup(Action onRestart = null)
+    {
+        ShowPopup(
+            "Victory!",
+            $"게임을 승리하셨습니다!\n이번 게임 총액 : {MoneyManager.Instance.CheckTotalMoney()}",
+            "O",
+            "X",
+            () => {
+                HidePopup();
+                onRestart?.Invoke();
+            },
+            () => {
+                HidePopup();
+                // 게임 종료 로직
+            #if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false;
+            #else
+                    Application.Quit();
+            #endif
+            }
+        );
+    }
     // 게임 오버 팝업
     public void ShowGameOverPopup(Action onRestart = null)
     {

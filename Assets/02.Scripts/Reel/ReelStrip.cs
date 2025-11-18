@@ -96,11 +96,9 @@ public class ReelStrip : ScriptableObject
             {
                 sw.Weight = newWeight;
                 GenerateStrip(); // Weight 변경 후 스트립 재생성
-                Debug.Log($"심볼 {symbolID} Weight를 {newWeight}로 변경");
                 return;
             }
         }
-
         Debug.LogWarning($"심볼 {symbolID}를 찾을 수 없음");
     }
 
@@ -108,7 +106,6 @@ public class ReelStrip : ScriptableObject
     public void ResetToOriginalWeights()
     {
         InitializeRuntimeCopy();
-        Debug.Log("Weight를 원래 값으로 리셋");
     }
 
     // 셔플

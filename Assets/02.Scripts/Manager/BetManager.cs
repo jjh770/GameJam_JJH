@@ -22,7 +22,7 @@ public class BetManager : MonoBehaviour
     public event Action OnJackpotTriggered;
 
     [Header("Bet Settings")]
-    [SerializeField] private int[] _betAmounts = { 10, 20, 50, 100, 200 };
+    [SerializeField] private int[] _betAmounts = { 10, 20, 50, 100, 200, 500, 1000 };
     private int _currentBetIndex = 0;
     private const int BASE_BET = 10; // 기준 배팅 금액
 
@@ -177,7 +177,6 @@ public class BetManager : MonoBehaviour
         if (_cumulativeBetAmount >= _jackpotTriggerAmount && !_jackpotReadyForNextSpin)
         {
             _jackpotReadyForNextSpin = true;
-            Debug.Log("다음 스핀에서 잭팟이 발동됩니다!");
         }
     }
     // 잭팟 트리거 호출 메서드 (외부에서 호출 가능)
@@ -190,6 +189,7 @@ public class BetManager : MonoBehaviour
     public void ResetCumulativeBet()
     {
         _cumulativeBetAmount = 0;
+        OnBetAccumulated?.Invoke(_cumulativeBetAmount, _jackpotTriggerAmount);
         _jackpotReadyForNextSpin = false; // 게임 오버 시 플래그도 리셋
         Debug.Log("누적 배팅 금액 리셋");
     }
@@ -198,5 +198,22 @@ public class BetManager : MonoBehaviour
     {
         // 기준 금액(10원) × 패턴 배율 × 배팅 배율
         return Mathf.RoundToInt(BASE_BET * patternMultiplier * CurrentBetMultiplier);
+    }
+    // BetManager.cs에 추가
+    public void ResetJackpotProgress(int newTarget)
+    {
+        // 새로운 잭팟 목표 설정
+        _jackpotTriggerAmount = newTarget;
+
+        // 누적 배팅 금액 초기화
+        _cumulativeBetAmount = 0;
+
+        // 잭팟 준비 플래그 리셋
+        _jackpotReadyForNextSpin = false;
+
+        // UI 업데이트를 위한 이벤트 발생
+        OnBetAccumulated?.Invoke(_cumulativeBetAmount, _jackpotTriggerAmount);
+
+        Debug.Log($"잭팟 리셋 완료. 새로운 목표: {_jackpotTriggerAmount}");
     }
 }
