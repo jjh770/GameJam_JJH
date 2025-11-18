@@ -12,20 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1af201b7d27be964aaeba98c5dad198b, type: 3}
   m_Name: ReelStrip_3
   m_EditorClassIdentifier: 
-  SymbolWeights:
+  _symbolWeights:
   - SymbolID: 0
-    Weight: 5
+    Weight: 20
+  - SymbolID: 1
+    Weight: 20
   - SymbolID: 2
-    Weight: 5
-  - SymbolID: 2
-    Weight: 4
+    Weight: 14
   - SymbolID: 3
-    Weight: 4
+    Weight: 12
   - SymbolID: 4
-    Weight: 3
+    Weight: 10
   - SymbolID: 5
-    Weight: 3
+    Weight: 10
   - SymbolID: 6
-    Weight: 2
+    Weight: 8
   - SymbolID: 7
-    Weight: 1
+    Weight: 6

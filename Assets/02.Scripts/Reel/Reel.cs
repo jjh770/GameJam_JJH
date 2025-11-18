@@ -88,8 +88,6 @@ public class Reel : MonoBehaviour
         _symbolPool.Add(bottomSymbol);
     }
 
-
-
     public void StartSpin()
     {
         if (!_isSpinning)
@@ -103,7 +101,6 @@ public class Reel : MonoBehaviour
         if (targetSymbols != null)
         {
             _finalResult = targetSymbols;
-            Debug.Log("?");
         }
         else
         {

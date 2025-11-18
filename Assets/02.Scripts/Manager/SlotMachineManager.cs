@@ -23,7 +23,9 @@ public class SlotMachineManager : MonoBehaviour
     [SerializeField] private int _betAmount = 10; // 베팅액
 
     [Header("Result Checker")]
-    [SerializeField] private SlotResultChecker _resultChecker;
+    [SerializeField] private SlotChecker _resultChecker;
+    [Header("Jackpot Settings")]
+    [SerializeField] private int _jackpotSymbolID = 0; // 잭팟에 사용할 심볼 ID
 
     private bool _isSpinning = false;
     private MoneyManager _moneyManager;
@@ -53,7 +55,7 @@ public class SlotMachineManager : MonoBehaviour
         // BetManager를 통한 배팅 확인 및 차감
         if (!_betManager.CanPlaceBet())
         {
-            Debug.LogWarning("잔액이 부족합니다!");
+            PopupManager.Instance.ShowInsufficientFundsPopup();
             return;
         }
         StartCoroutine(SpinSequence());
@@ -74,23 +76,49 @@ public class SlotMachineManager : MonoBehaviour
 
     private IEnumerator SpinSequence()
     {
+        // 잭팟 체크는 배팅 **전에** 수행 (이전 스핀의 누적 결과로 판단)
+        bool shouldTriggerJackpot = _betManager.ShouldTriggerJackpot;
+
         // BetManager를 통해 배팅 금액 차감
         if (!_betManager.PlaceBet()) yield break;
         _isSpinning = true;
+        SoundManager.Instance.PlaySFX(SoundManager.SFXType.SlotMachine);
         _spinButton.interactable = false;
         _betManager.SetBetButtonsInteractable(false);
+
+
+        if (shouldTriggerJackpot)
+        {
+            Debug.Log("잭팟 발동!");
+            // 랜덤 심볼 선택 (고배율 심볼 중에서)
+            int jackpotSymbol = GetRandomJackpotSymbol();
+            SetJackpotResult(jackpotSymbol);
+            _betManager.ResetCumulativeBet();
+            _betManager.TriggerJackpot(); 
+        }
 
         foreach (var reel in _reels)
         {
             reel.StartSpin();
         }
 
-        yield return new WaitForSeconds(1.0f);
+        yield return new WaitForSeconds(2f);
 
-        for (int i = 0; i < _reels.Length; i++)
+        // 잭팟이면 동시 정지, 아니면 순차 정지
+        if (shouldTriggerJackpot)
         {
-            _reels[i].StopSpin();
-            yield return new WaitForSeconds(_reelStopDelay);
+            foreach (var reel in _reels)
+            {
+                reel.StopSpin();
+            }
+        }
+        else
+        {
+            for (int i = 0; i < _reels.Length; i++)
+            {
+                _reels[i].StopSpin();
+                yield return new WaitForSeconds(_reelStopDelay);
+            }
         }
 
         yield return new WaitUntil(() => AllReelsStopped());
@@ -110,12 +138,39 @@ public class SlotMachineManager : MonoBehaviour
         // 하이라이트 + 돈 지급
         if (results.Count > 0)
         {
+            if (shouldTriggerJackpot)
+            {
+                SoundManager.Instance.PlaySFX(SoundManager.SFXType.Jackpot);
+            }
             yield return StartCoroutine(HighlightAndPayPatterns(results));
         }
+        else if (results.Count == 0)
+        {
+            SoundManager.Instance.PlaySFX(SoundManager.SFXType.NoPattern);
+        }
+        // 스핀 종료 후 다음 스핀 잭팟 준비 체크
+        _betManager.CheckAndPrepareJackpot();
 
+        _moneyManager.CheckCurrentMoney();
+        _moneyManager.CheckGameOver();
         _isSpinning = false;
         _spinButton.interactable = true;
         _betManager.SetBetButtonsInteractable(true);
+        AdjustDifficultyByMoney(_moneyManager.CurrentMoney);
+    }
+
+    // 랜덤 잭팟 심볼 선택 (고배율 심볼 중에서)
+    private int GetRandomJackpotSymbol()
+    {
+        // 배율이 높은 심볼들만 필터링 (예: SymbolMultiplier >= 5)
+        var highValueSymbols = _allSymbols.FindAll(s => s.SymbolMultiplier >= 3f);
+        return highValueSymbols[UnityEngine.Random.Range(0, highValueSymbols.Count)].SymbolID;
+    }
+
+    // 잭팟 결과 강제 설정 (5x3 전부 같은 심볼)
+    private void SetJackpotResult(int symbolID)
+    {
+        JackPotSymbolWeight(symbolID);
     }
 
     private IEnumerator HighlightAndPayPatterns(List<(string patternName, float multiplier, int symbolID, List<(int row, int col)> matchedPositions)> results)
@@ -150,10 +205,9 @@ public class SlotMachineManager : MonoBehaviour
 
             yield return sequence.WaitForCompletion();
 
-            _moneyManager.WinMoney(totalWinAmount);
+            yield return _moneyManager.WinMoney(symbolMultiplier, result.multiplier, totalWinAmount);
 
-
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSeconds(0.3f);
         }
 
         // 최종 확정
@@ -216,8 +270,6 @@ public class SlotMachineManager : MonoBehaviour
         _spinButton.interactable = true;
     }
 
-
-
     private IEnumerator ProcessResults()
     {
         int[,] resultGrid = new int[3, 5];
@@ -239,6 +291,95 @@ public class SlotMachineManager : MonoBehaviour
         if (results.Count > 0)
         {
             yield return StartCoroutine(HighlightMatchedPatterns(results));
+        }
+    }
+
+    // 특정 릴의 특정 심볼 Weight 변경
+    public void ModifySymbolWeight(int reelIndex, int symbolID, int newWeight)
+    {
+        if (reelIndex < 0 || reelIndex >= _reelStrips.Length)
+        {
+            Debug.LogWarning($"릴 인덱스 범위 초과: {reelIndex}");
+            return;
+        }
+
+        _reelStrips[reelIndex].SetSymbolWeight(symbolID, newWeight);
+    }
+    public void JackPotSymbolWeight(int symbolID)
+    {
+        for (int i = 0; i < _reelStrips.Length; i++)
+        {
+            for (int j = 0; j < 8; j++) 
+            {
+                _reelStrips[i].SetSymbolWeight(j, 0);
+            }
+            _reelStrips[i].SetSymbolWeight(symbolID, 1);
+        }
+    }
+    // 난이도 조정
+    public void SetDifficulty(string difficulty)
+    {
+        foreach (var strip in _reelStrips)
+        {
+            switch (difficulty.ToLower())
+            {
+                case "easy":
+                    strip.SetSymbolWeight(0, 5);
+                    strip.SetSymbolWeight(1, 5);
+                    strip.SetSymbolWeight(2, 5);
+                    strip.SetSymbolWeight(6, 20);
+                    strip.SetSymbolWeight(7, 25);
+                    break;
+
+                case "hard":
+                    strip.SetSymbolWeight(0, 30);
+                    strip.SetSymbolWeight(1, 25);
+                    strip.SetSymbolWeight(2, 20);
+                    strip.SetSymbolWeight(6, 3);
+                    strip.SetSymbolWeight(7, 2);
+                    break;
+
+                case "normal":
+                default:
+                    strip.ResetToOriginalWeights();
+                    break;
+            }
+        }
+        Debug.Log($"난이도 {difficulty.ToUpper()}로 설정");
+    }
+
+    // 현재 돈에 따라 동적 난이도 조정
+    public void AdjustDifficultyByMoney(int currentMoney)
+    {
+        if (currentMoney < 100)
+        {
+            SetDifficulty("easy");
+        }
+        else if (currentMoney >= 1000)
+        {
+            SetDifficulty("hard");
+        }
+        else
+        {
+            SetDifficulty("normal");
+        }
+    }
+
+    // 모든 Weight 리셋
+    public void ResetAllWeights()
+    {
+        foreach (var strip in _reelStrips)
+        {
+            strip.ResetToOriginalWeights();
+        }
+    }
+
+    // 현재 Weight 확인 (디버그)
+    public void DebugPrintWeights()
+    {
+        foreach (var strip in _reelStrips)
+        {
+            strip.PrintCurrentWeights();
         }
     }
 

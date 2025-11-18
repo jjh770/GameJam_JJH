@@ -1,11 +1,25 @@
+using DG.Tweening;
+using System;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
-using System;
 
 public class BetManager : MonoBehaviour
 {
     public static BetManager Instance { get; private set; }
+
+    [Header("Jackpot Settings")]
+    [SerializeField] private int _jackpotTriggerAmount = 3000; // 잭팟 발동 누적 금액
+    private int _cumulativeBetAmount = 0; // 누적 배팅 금액
+    private bool _jackpotReadyForNextSpin = false; // 다음 스핀에 잭팟 준비됨
+    public int CumulativeBetAmount => _cumulativeBetAmount;
+    public int RemainingToJackpot => Mathf.Max(0, _jackpotTriggerAmount - _cumulativeBetAmount);
+
+    // 현재 스핀에서 잭팟을 발동할지 여부 (다음 스핀용 플래그)
+    public bool ShouldTriggerJackpot => _jackpotReadyForNextSpin;
+
+    public event Action<int, int> OnBetAccumulated; // (현재 누적, 목표 금액)
+    public event Action OnJackpotTriggered;
 
     [Header("Bet Settings")]
     [SerializeField] private int[] _betAmounts = { 10, 20, 50, 100, 200 };
@@ -22,6 +36,12 @@ public class BetManager : MonoBehaviour
     public float CurrentBetMultiplier => (float)CurrentBetAmount / BASE_BET;
 
     public event Action<int> OnBetChanged;
+
+    [Header("Count Animation")]
+    [SerializeField] private float _countDuration = 0.5f;
+    [SerializeField] private Ease _countEase = Ease.OutQuad;
+    private Tween _betTween;
+    private int _displayBetAmount; // 화면에 표시되는 베팅 금액
 
     void Awake()
     {
@@ -46,6 +66,8 @@ public class BetManager : MonoBehaviour
         _decreaseBetButton.onClick.AddListener(DecreaseBet);
         _increaseBetButton.onClick.AddListener(IncreaseBet);
 
+        // 초기 표시 금액 설정
+        _displayBetAmount = CurrentBetAmount;
         UpdateBetUI();
         UpdateButtonStates();
     }
@@ -74,8 +96,24 @@ public class BetManager : MonoBehaviour
 
     private void UpdateBetUI()
     {
-        _betAmountText.text = $"{CurrentBetAmount}";
+        // 기존 애니메이션이 진행 중이면 중지
+        if (_betTween != null && _betTween.IsActive())
+        {
+            _betTween.Kill();
+        }
 
+        // 배팅 금액 카운팅 애니메이션
+        _betTween = DOTween.To(
+            () => _displayBetAmount,
+            x => {
+                _displayBetAmount = x;
+                _betAmountText.text = $"{_displayBetAmount}";
+            },
+            CurrentBetAmount,
+            _countDuration
+        ).SetEase(_countEase);
+
+        // 배율 텍스트는 즉시 업데이트
         if (_betMultiplierText != null)
         {
             _betMultiplierText.text = $"배팅 금액 (배수 : {CurrentBetMultiplier}x)";
@@ -111,18 +149,50 @@ public class BetManager : MonoBehaviour
         return MoneyManager.Instance.HasEnoughMoney(CurrentBetAmount);
     }
 
-    // 베팅 금액 차감
     public bool PlaceBet()
     {
         if (!CanPlaceBet())
         {
-            Debug.LogWarning("배팅 금액이 부족합니다!");
+            PopupManager.Instance.ShowInsufficientFundsPopup();
             return false;
         }
 
-        return MoneyManager.Instance.SpendMoney(CurrentBetAmount);
+        if (MoneyManager.Instance.SpendMoney(CurrentBetAmount))
+        {
+            // 배팅 후 누적 금액 증가
+            _cumulativeBetAmount += CurrentBetAmount;
+            OnBetAccumulated?.Invoke(_cumulativeBetAmount, _jackpotTriggerAmount);
+
+            Debug.Log($"누적 배팅: {_cumulativeBetAmount}/{_jackpotTriggerAmount}");
+
+            return true;
+        }
+
+        return false;
     }
 
+    // 스핀 직후에 호출: 다음 스핀에서 잭팟을 터뜨릴지 체크
+    public void CheckAndPrepareJackpot()
+    {
+        if (_cumulativeBetAmount >= _jackpotTriggerAmount && !_jackpotReadyForNextSpin)
+        {
+            _jackpotReadyForNextSpin = true;
+            Debug.Log("다음 스핀에서 잭팟이 발동됩니다!");
+        }
+    }
+    // 잭팟 트리거 호출 메서드 (외부에서 호출 가능)
+    public void TriggerJackpot()
+    {
+        OnJackpotTriggered?.Invoke();
+        _jackpotReadyForNextSpin = false; // 잭팟 발동 후 플래그 리셋
+    }
+    // 잭팟 트리거 후 리셋
+    public void ResetCumulativeBet()
+    {
+        _cumulativeBetAmount = 0;
+        _jackpotReadyForNextSpin = false; // 게임 오버 시 플래그도 리셋
+        Debug.Log("누적 배팅 금액 리셋");
+    }
     // 패턴 배율에 배팅 배율을 곱한 최종 승리 금액 계산
     public int CalculateWinAmount(float patternMultiplier)
     {
