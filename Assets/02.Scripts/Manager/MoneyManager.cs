@@ -12,6 +12,9 @@ public class MoneyManager : MonoBehaviour
     [SerializeField] private int _startMoney = 1000;
     private int _currentMoney;
     private int _displayMoney; // 화면에 표시되는 돈
+    private int _totalMoney;
+
+    [SerializeField] private bool _isGameWin = false;
     [SerializeField] private TMPro.TextMeshProUGUI _winAmountText;
 
     [Header("Count Animation")]
@@ -23,6 +26,7 @@ public class MoneyManager : MonoBehaviour
     public int CurrentMoney => _currentMoney;
 
     public event Action<int> OnMoneyChanged;
+    public event Action OnGameWin;
 
     private Tween _countTween;
 
@@ -36,6 +40,7 @@ public class MoneyManager : MonoBehaviour
         }
         _currentMoney = _startMoney;
         _displayMoney = _startMoney;
+        _totalMoney = _startMoney;
         _winAmountText.enabled = false;
     }
     public void CheckCurrentMoney()
@@ -45,7 +50,7 @@ public class MoneyManager : MonoBehaviour
             // 300 초과하면 심장 소리 중지
             SoundManager.Instance.StopLoopSound();
         }
-        else if (_currentMoney <= 300)
+        else if (_currentMoney <= 500)
         {
             // 아직 재생 중이 아니면 시작
             if (!SoundManager.Instance.IsLoopSoundPlaying())
@@ -57,15 +62,15 @@ public class MoneyManager : MonoBehaviour
         {
             PostProcessingManager.Instance.StopVignettePulseAndReset(0f, 0.5f);
         }
-        else if (_currentMoney <= 100)
+        else if (_currentMoney <= 300)
         {
             PostProcessingManager.Instance.StartVignettePulse(1f);
         }
-        else if (_currentMoney <= 300)
+        else if (_currentMoney <= 500)
         {
             PostProcessingManager.Instance.StartVignettePulse(2f);
         }
-        else if (_currentMoney > 300)
+        else if (_currentMoney > 500)
         {
             PostProcessingManager.Instance.StopVignettePulseAndReset(0f, 0.5f);
         }
@@ -74,7 +79,7 @@ public class MoneyManager : MonoBehaviour
     {
         // 실제 돈은 즉시 추가
         _currentMoney += amount;
-
+        _totalMoney += amount;
         // 화면 표시는 부드럽게 카운팅
         if (_countTween != null && _countTween.IsActive())
         {
@@ -98,7 +103,7 @@ public class MoneyManager : MonoBehaviour
 
         _currentMoney -= amount;
         _displayMoney = _currentMoney; // 소비는 즉시 반영
-
+        _totalMoney += amount;
         if (_countTween != null && _countTween.IsActive())
         {
             _countTween.Kill();
@@ -125,18 +130,18 @@ public class MoneyManager : MonoBehaviour
 
     public void TotalWinMoney(int winTotalMoney)
     {
-        if (winTotalMoney <= 100)
+        if (winTotalMoney <= 500)
         {
             SoundManager.Instance.PlaySFX(SFXType.CoinDropSmall);
             ParticleManager.Instance.PlayParticle("Coin_verysmall", Vector3.zero);
         }
-        else if (winTotalMoney <= 200)
+        else if (winTotalMoney <= 1000)
         {
             SoundManager.Instance.PlaySFX(SFXType.CoinDropSmall);
             ParticleManager.Instance.PlayParticle("Coin_verysmall", Vector3.zero);
             ParticleManager.Instance.PlayParticle("Coin_small", Vector3.zero);
         }
-        else if (winTotalMoney < 500)
+        else if (winTotalMoney < 3000)
         {
             SoundManager.Instance.PlaySFX(SFXType.CoinDropSmall);
             SoundManager.Instance.PlaySFX(SFXType.CoinDropBig);
@@ -144,7 +149,7 @@ public class MoneyManager : MonoBehaviour
             ParticleManager.Instance.PlayParticle("Coin_small", Vector3.zero); 
             ParticleManager.Instance.PlayParticle("Coin_middle", Vector3.zero);
         }
-        else if (winTotalMoney >= 500)
+        else if (winTotalMoney >= 3000)
         {
             SoundManager.Instance.PlaySFX(SFXType.CoinDropSmall);
             SoundManager.Instance.PlaySFX(SFXType.CoinDropBig);
@@ -161,9 +166,19 @@ public class MoneyManager : MonoBehaviour
         // 마지막 강조 흔들림
         _winAmountText.rectTransform.DOShakeAnchorPos(0.3f, new Vector3(20f, 0, 0), 15, 0);
         _winAmountText.transform.DOScale(1.5f, 0.3f).SetLoops(2, LoopType.Yoyo);
+
+        if (_isGameWin)
+        {
+            PopupManager.Instance.ShowGameWinPopup(() => {
+                ResetMoney(500);
+                _isGameWin = false;
+                OnGameWin?.Invoke();
+            });
+        }
     }
     public void InitWinMoney()
     {
+        _winAmountText.transform.DOScale(1f, 0.1f);
         _winAmountText.enabled = false;
     }
 
@@ -177,6 +192,10 @@ public class MoneyManager : MonoBehaviour
         if (_countTween != null && _countTween.IsActive())
         {
             _countTween.Kill();
+        }
+        if (BetManager.Instance != null)
+        {
+            BetManager.Instance.ResetCumulativeBet();
         }
         _currentMoney = value;
         _displayMoney = value;
@@ -195,12 +214,19 @@ public class MoneyManager : MonoBehaviour
             PopupManager.Instance.ShowGameOverPopup(() => {
                 // 게임 재시작 로직
                 // 누적 배팅 금액 초기화
-                if (BetManager.Instance != null)
-                {
-                    BetManager.Instance.ResetCumulativeBet();
-                }
-                ResetMoney(1000); // 초기 자금으로 리셋
+                ResetMoney(500); // 초기 자금으로 리셋
+                OnGameWin?.Invoke();
             });
         }
+    }
+
+    public int CheckTotalMoney()
+    {
+        return _totalMoney;
+    }
+
+    public void WinTheGame()
+    {
+        _isGameWin = true;
     }
 }

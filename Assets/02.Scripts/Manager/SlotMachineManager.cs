@@ -14,7 +14,6 @@ public class SlotMachineManager : MonoBehaviour
     [SerializeField] private ReelStrip[] _reelStrips; // 5개 (릴마다 다른 확률 가능)
     [Header("UI")]
     [SerializeField] private Button _spinButton;
-    [SerializeField] private Button _testButton;
     [SerializeField] private float _shakeDuration = 0.3f;
     [SerializeField] private float _shakeStrength = 10f;
 
@@ -36,7 +35,6 @@ public class SlotMachineManager : MonoBehaviour
         _moneyManager = MoneyManager.Instance;
         _betManager = BetManager.Instance;
         _spinButton.onClick.AddListener(OnSpinButtonClick);
-        _testButton.onClick.AddListener(OnTestButtonClick);
     }
 
     private void InitializeSlotMachine()
@@ -60,24 +58,12 @@ public class SlotMachineManager : MonoBehaviour
         }
         StartCoroutine(SpinSequence());
     }
-    public void OnTestButtonClick()
-    {
-        int[][] debugResult = new int[][]
-        {
-            new int[] {0, 0, 0},
-            new int[] {0, 0, 0},
-            new int[] {0, 0, 0},
-            new int[] {0, 0, 0},
-            new int[] {0, 0, 0}
-        };
-        SetDebugResult(debugResult);
-        ProcessResults();
-    }
 
     private IEnumerator SpinSequence()
     {
         // 잭팟 체크는 배팅 **전에** 수행 (이전 스핀의 누적 결과로 판단)
         bool shouldTriggerJackpot = _betManager.ShouldTriggerJackpot;
+        AdjustDifficultyByMoney(_moneyManager.CurrentMoney);
 
         // BetManager를 통해 배팅 금액 차감
         if (!_betManager.PlaceBet()) yield break;
@@ -163,7 +149,7 @@ public class SlotMachineManager : MonoBehaviour
     private int GetRandomJackpotSymbol()
     {
         // 배율이 높은 심볼들만 필터링 (예: SymbolMultiplier >= 5)
-        var highValueSymbols = _allSymbols.FindAll(s => s.SymbolMultiplier >= 3f);
+        var highValueSymbols = _allSymbols.FindAll(s => s.SymbolMultiplier >= 1f);
         return highValueSymbols[UnityEngine.Random.Range(0, highValueSymbols.Count)].SymbolID;
     }
 
@@ -214,7 +200,7 @@ public class SlotMachineManager : MonoBehaviour
         if (totalWinAmount > 0)
         {
             _moneyManager.TotalWinMoney(totalWinAmount);
-            if (totalWinAmount >= 500)
+            if (totalWinAmount >= 3000)
             {
                 yield return new WaitForSeconds(1.5f);
             }
@@ -323,20 +309,47 @@ public class SlotMachineManager : MonoBehaviour
         {
             switch (difficulty.ToLower())
             {
-                case "easy":
-                    strip.SetSymbolWeight(0, 5);
-                    strip.SetSymbolWeight(1, 5);
-                    strip.SetSymbolWeight(2, 5);
-                    strip.SetSymbolWeight(6, 20);
-                    strip.SetSymbolWeight(7, 25);
+                case "very easy":  // 고가치 심볼 출현 빈도 매우 높음
+                    strip.SetSymbolWeight(0, 8);
+                    strip.SetSymbolWeight(1, 8);
+                    strip.SetSymbolWeight(2, 8);
+                    strip.SetSymbolWeight(3, 8);
+                    strip.SetSymbolWeight(4, 6);
+                    strip.SetSymbolWeight(5, 6);
+                    strip.SetSymbolWeight(6, 28);
+                    strip.SetSymbolWeight(7, 28);
                     break;
 
-                case "hard":
-                    strip.SetSymbolWeight(0, 30);
-                    strip.SetSymbolWeight(1, 25);
-                    strip.SetSymbolWeight(2, 20);
-                    strip.SetSymbolWeight(6, 3);
-                    strip.SetSymbolWeight(7, 2);
+                case "easy":  // 고가치 심볼 출현 빈도 높음
+                    strip.SetSymbolWeight(0, 12);
+                    strip.SetSymbolWeight(1, 12);
+                    strip.SetSymbolWeight(2, 8);
+                    strip.SetSymbolWeight(3, 8);
+                    strip.SetSymbolWeight(4, 10);
+                    strip.SetSymbolWeight(5, 10);
+                    strip.SetSymbolWeight(6, 20);
+                    strip.SetSymbolWeight(7, 20);
+                    break;
+                case "hard":  // 저가치 심볼 위주
+                    strip.SetSymbolWeight(0, 20);  
+                    strip.SetSymbolWeight(1, 20);  
+                    strip.SetSymbolWeight(2, 15);  
+                    strip.SetSymbolWeight(3, 10);  
+                    strip.SetSymbolWeight(4, 10);   
+                    strip.SetSymbolWeight(5, 10);
+                    strip.SetSymbolWeight(6, 10);
+                    strip.SetSymbolWeight(7, 5);   
+                    break;
+
+                case "very hard":  // 고가치 심볼 거의 안나옴
+                    strip.SetSymbolWeight(0, 15);
+                    strip.SetSymbolWeight(1, 15);
+                    strip.SetSymbolWeight(2, 15);
+                    strip.SetSymbolWeight(3, 15);
+                    strip.SetSymbolWeight(4, 15); 
+                    strip.SetSymbolWeight(5, 15); 
+                    strip.SetSymbolWeight(6, 5);
+                    strip.SetSymbolWeight(7, 5);
                     break;
 
                 case "normal":
@@ -351,11 +364,19 @@ public class SlotMachineManager : MonoBehaviour
     // 현재 돈에 따라 동적 난이도 조정
     public void AdjustDifficultyByMoney(int currentMoney)
     {
-        if (currentMoney < 100)
+        if (currentMoney < 200)
+        {
+            SetDifficulty("very easy");
+        }
+        else if (currentMoney <= 1000)
         {
             SetDifficulty("easy");
         }
-        else if (currentMoney >= 1000)
+        else if (currentMoney >= 3000)
+        {
+            SetDifficulty("hard");
+        }
+        else if (currentMoney >= 5000)
         {
             SetDifficulty("hard");
         }
@@ -380,15 +401,6 @@ public class SlotMachineManager : MonoBehaviour
         foreach (var strip in _reelStrips)
         {
             strip.PrintCurrentWeights();
-        }
-    }
-
-    // 디버그: 특정 결과 강제 설정
-    public void SetDebugResult(int[][] debugResult)
-    {
-        for (int i = 0; i < _reels.Length && i < debugResult.Length; i++)
-        {
-            _reels[i].StopSpin(debugResult[i]);
         }
     }
 }
