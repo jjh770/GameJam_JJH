@@ -6272,7 +6272,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2eb5991eb48822748897192f1a8ed9f3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _startMoney: 500
+  _startMoney: 1000
   _isGameWin: 0
   _winAmountText: {fileID: 1929174214}
   _countDuration: 0.5

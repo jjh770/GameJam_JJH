@@ -161,16 +161,21 @@ public class MoneyManager : MonoBehaviour
 
             _winAmountText.rectTransform.DOShakeAnchorPos(2f, new Vector3(30f, 0, 0), 30, 0);
             _winAmountText.transform.DOScale(2f, 2f).SetLoops(4, LoopType.Yoyo);
+            CheckGameSet();
             return; 
         }
         // 마지막 강조 흔들림
         _winAmountText.rectTransform.DOShakeAnchorPos(0.3f, new Vector3(20f, 0, 0), 15, 0);
         _winAmountText.transform.DOScale(1.5f, 0.3f).SetLoops(2, LoopType.Yoyo);
 
+        CheckGameSet();
+    }
+    private void CheckGameSet()
+    {
         if (_isGameWin)
         {
             PopupManager.Instance.ShowGameWinPopup(() => {
-                ResetMoney(500);
+                ResetMoney(1000);
                 _isGameWin = false;
                 OnGameWin?.Invoke();
             });
@@ -214,7 +219,7 @@ public class MoneyManager : MonoBehaviour
             PopupManager.Instance.ShowGameOverPopup(() => {
                 // 게임 재시작 로직
                 // 누적 배팅 금액 초기화
-                ResetMoney(500); // 초기 자금으로 리셋
+                ResetMoney(1000); // 초기 자금으로 리셋
                 OnGameWin?.Invoke();
             });
         }

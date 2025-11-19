@@ -14,13 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _symbolWeights:
   - SymbolID: 0
-    Weight: 20
+    Weight: 25
   - SymbolID: 1
-    Weight: 20
+    Weight: 25
   - SymbolID: 2
-    Weight: 14
+    Weight: 20
   - SymbolID: 3
-    Weight: 12
+    Weight: 20
   - SymbolID: 4
     Weight: 10
   - SymbolID: 5
@@ -28,4 +28,4 @@ MonoBehaviour:
   - SymbolID: 6
     Weight: 8
   - SymbolID: 7
-    Weight: 4
+    Weight: 6

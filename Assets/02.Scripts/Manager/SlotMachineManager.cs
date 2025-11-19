@@ -310,35 +310,35 @@ public class SlotMachineManager : MonoBehaviour
             switch (difficulty.ToLower())
             {
                 case "very easy":  // 고가치 심볼 출현 빈도 매우 높음
-                    strip.SetSymbolWeight(0, 8);
-                    strip.SetSymbolWeight(1, 8);
-                    strip.SetSymbolWeight(2, 8);
-                    strip.SetSymbolWeight(3, 8);
-                    strip.SetSymbolWeight(4, 6);
-                    strip.SetSymbolWeight(5, 6);
-                    strip.SetSymbolWeight(6, 28);
-                    strip.SetSymbolWeight(7, 28);
+                    strip.SetSymbolWeight(0, 6);
+                    strip.SetSymbolWeight(1, 6);
+                    strip.SetSymbolWeight(2, 6);
+                    strip.SetSymbolWeight(3, 6);
+                    strip.SetSymbolWeight(4, 4);
+                    strip.SetSymbolWeight(5, 4);
+                    strip.SetSymbolWeight(6, 30);
+                    strip.SetSymbolWeight(7, 30);
                     break;
 
                 case "easy":  // 고가치 심볼 출현 빈도 높음
-                    strip.SetSymbolWeight(0, 12);
-                    strip.SetSymbolWeight(1, 12);
-                    strip.SetSymbolWeight(2, 8);
-                    strip.SetSymbolWeight(3, 8);
-                    strip.SetSymbolWeight(4, 10);
-                    strip.SetSymbolWeight(5, 10);
-                    strip.SetSymbolWeight(6, 20);
-                    strip.SetSymbolWeight(7, 20);
+                    strip.SetSymbolWeight(0, 10);
+                    strip.SetSymbolWeight(1, 10);
+                    strip.SetSymbolWeight(2, 9);
+                    strip.SetSymbolWeight(3, 9);
+                    strip.SetSymbolWeight(4, 8);
+                    strip.SetSymbolWeight(5, 8);
+                    strip.SetSymbolWeight(6, 25);
+                    strip.SetSymbolWeight(7, 25);
                     break;
                 case "hard":  // 저가치 심볼 위주
                     strip.SetSymbolWeight(0, 20);  
                     strip.SetSymbolWeight(1, 20);  
                     strip.SetSymbolWeight(2, 15);  
-                    strip.SetSymbolWeight(3, 10);  
-                    strip.SetSymbolWeight(4, 10);   
-                    strip.SetSymbolWeight(5, 10);
-                    strip.SetSymbolWeight(6, 10);
-                    strip.SetSymbolWeight(7, 5);   
+                    strip.SetSymbolWeight(3, 15);  
+                    strip.SetSymbolWeight(4, 15);   
+                    strip.SetSymbolWeight(5, 15);
+                    strip.SetSymbolWeight(6, 15);
+                    strip.SetSymbolWeight(7, 15);   
                     break;
 
                 case "very hard":  // 고가치 심볼 거의 안나옴
@@ -364,7 +364,7 @@ public class SlotMachineManager : MonoBehaviour
     // 현재 돈에 따라 동적 난이도 조정
     public void AdjustDifficultyByMoney(int currentMoney)
     {
-        if (currentMoney < 200)
+        if (currentMoney < 500)
         {
             SetDifficulty("very easy");
         }
